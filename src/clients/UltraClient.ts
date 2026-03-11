@@ -46,6 +46,24 @@ export type PostExecuteResponse = {
   signature: string;
 };
 
+export type HoldingsTokenAccount = {
+  account: string;
+  amount: string;
+  uiAmount: number;
+  uiAmountString: string;
+  isFrozen: boolean;
+  isAssociatedTokenAccount: boolean;
+  decimals: number;
+  programId: string;
+};
+
+export type GetHoldingsResponse = {
+  amount: string;
+  uiAmount: number;
+  uiAmountString: string;
+  tokens: Record<string, HoldingsTokenAccount[]>;
+};
+
 export class UltraClient {
   static readonly #BASE_URL = "https://lite-api.jup.ag/ultra/v1";
   static readonly #ATTRIBUTION_HEADER = {
@@ -59,6 +77,16 @@ export class UltraClient {
       .get(`${this.#BASE_URL}/order`, {
         searchParams: params,
         throwHttpErrors: false,
+        headers: this.#ATTRIBUTION_HEADER,
+      })
+      .json();
+  }
+
+  public static async getHoldings(
+    address: string
+  ): Promise<GetHoldingsResponse> {
+    return ky
+      .get(`${this.#BASE_URL}/holdings/${address}`, {
         headers: this.#ATTRIBUTION_HEADER,
       })
       .json();

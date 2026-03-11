@@ -1,6 +1,10 @@
 import type { Command } from "commander";
+
 import { DatapiClient, type Token } from "../clients/DatapiClient.ts";
-import { UltraClient } from "../clients/UltraClient.ts";
+import {
+  UltraClient,
+  type HoldingsTokenAccount,
+} from "../clients/UltraClient.ts";
 import { Config } from "../lib/Config.ts";
 import { NumberConverter } from "../lib/NumberConverter.ts";
 import { Output } from "../lib/Output.ts";
@@ -43,6 +47,12 @@ export class SpotCommand {
       )
       .option("--key <name>", "Key to use for signing")
       .action((opts) => this.swap(opts));
+    spot
+      .command("holdings")
+      .description("Show token holdings for a wallet")
+      .option("--address <address>", "Wallet address to look up")
+      .option("--key <name>", "Key to use (overrides active key)")
+      .action((opts) => this.holdings(opts));
   }
 
   private static async tokens(opts: {
@@ -275,6 +285,162 @@ export class SpotCommand {
         },
       ],
     });
+  }
+
+  private static async holdings(opts: {
+    address?: string;
+    key?: string;
+  }): Promise<void> {
+    if (opts.address && opts.key) {
+      throw new Error("Only one of --address or --key can be provided.");
+    }
+
+    const address =
+      opts.address ??
+      (await Signer.load(opts.key ?? Config.load().activeKey)).address;
+
+    const WSOL_MINT = "So11111111111111111111111111111111111111112";
+    const SOL_DECIMALS = 9;
+
+    const raw = await UltraClient.getHoldings(address);
+
+    // Preprocess: extract only ATA entries, keyed by mint
+    const ataByMint = new Map<string, HoldingsTokenAccount>();
+    for (const [mint, accounts] of Object.entries(raw.tokens)) {
+      const ata = accounts.find((acc) => acc.isAssociatedTokenAccount);
+      if (ata) {
+        ataByMint.set(mint, ata);
+      }
+    }
+
+    // Resolve all token info via Datapi
+    const allMints = [...ataByMint.keys()];
+    if (!ataByMint.has(WSOL_MINT)) {
+      allMints.push(WSOL_MINT);
+    }
+
+    const BATCH_SIZE = 100;
+    const tokenMap = new Map<string, Token>();
+    const batches: string[][] = [];
+    for (let i = 0; i < allMints.length; i += BATCH_SIZE) {
+      batches.push(allMints.slice(i, i + BATCH_SIZE));
+    }
+    const resolved = await Promise.all(
+      batches.map((batch) =>
+        DatapiClient.search({
+          query: batch.join(","),
+          limit: BATCH_SIZE.toString(),
+        })
+      )
+    );
+    for (const tokens of resolved) {
+      for (const token of tokens) {
+        tokenMap.set(token.id, token);
+      }
+    }
+
+    type HoldingToken = {
+      id: string;
+      symbol: string;
+      decimals: number;
+      amount: number;
+      rawAmount: string;
+      value: number;
+      price: number;
+      priceChange: number;
+      isVerified?: boolean | undefined;
+      scaledUiMultiplier?: number | undefined;
+    };
+
+    const outputTokens: HoldingToken[] = [];
+
+    // Add combined SOL/WSOL entry
+    const wsolInfo = tokenMap.get(WSOL_MINT);
+    const solLamports = BigInt(raw.amount);
+    const wsolLamports = BigInt(ataByMint.get(WSOL_MINT)?.amount ?? "0");
+    const combinedSolLamports = solLamports + wsolLamports;
+    if (wsolInfo && combinedSolLamports > 0n) {
+      const amount = Number(
+        NumberConverter.fromChainAmount(combinedSolLamports, SOL_DECIMALS)
+      );
+      outputTokens.push({
+        id: WSOL_MINT,
+        symbol: wsolInfo.symbol,
+        decimals: SOL_DECIMALS,
+        amount,
+        rawAmount: combinedSolLamports.toString(),
+        value: amount * (wsolInfo.usdPrice ?? 0),
+        price: wsolInfo.usdPrice ?? 0,
+        priceChange: wsolInfo.stats24h?.priceChange ?? 0,
+        isVerified: wsolInfo.isVerified,
+      });
+    }
+
+    for (const [mint, ata] of ataByMint) {
+      if (mint === WSOL_MINT) {
+        continue;
+      }
+      const info = tokenMap.get(mint);
+      if (!info) {
+        continue;
+      }
+      const multiplier = info.scaledUiConfig
+        ? new Date() >= new Date(info.scaledUiConfig.newMultiplierEffectiveAt)
+          ? info.scaledUiConfig.newMultiplier
+          : info.scaledUiConfig.multiplier
+        : undefined;
+      const amount = Number(
+        NumberConverter.fromChainAmount(ata.amount, info.decimals, multiplier)
+      );
+      outputTokens.push({
+        id: mint,
+        symbol: info.symbol,
+        decimals: info.decimals,
+        amount,
+        rawAmount: ata.amount,
+        value: amount * (info.usdPrice ?? 0),
+        price: info.usdPrice ?? 0,
+        priceChange: info.stats24h?.priceChange ?? 0,
+        isVerified: info.isVerified,
+        scaledUiMultiplier: multiplier,
+      });
+    }
+
+    // Sort by value descending
+    outputTokens.sort((a, b) => b.value - a.value);
+    const totalValue = outputTokens.reduce((sum, t) => sum + t.value, 0);
+
+    if (Output.isJson()) {
+      Output.json({ totalValue, tokens: outputTokens });
+      return;
+    }
+
+    if (outputTokens.length === 0) {
+      throw new Error("No holdings found for this address.");
+    }
+
+    Output.table({
+      type: "horizontal",
+      headers: {
+        symbol: "Token",
+        amount: "Amount",
+        price: "Price",
+        value: "Value",
+        priceChange: "24h Change",
+        verified: "Verified",
+      },
+      rows: outputTokens.map((t) => ({
+        symbol: t.symbol,
+        amount: t.amount.toLocaleString("en-US", {
+          maximumFractionDigits: 6,
+        }),
+        price: Output.formatDollar(t.price),
+        value: Output.formatDollar(t.value),
+        priceChange: Output.formatPercentageChange(t.priceChange),
+        verified: Output.formatBoolean(t.isVerified),
+      })),
+    });
+    console.log(`\nTotal Value: ${Output.formatDollar(totalValue)}`);
   }
 
   private static validateAmountOpts(opts: {
