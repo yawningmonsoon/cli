@@ -108,13 +108,19 @@ export class SpotCommand {
       this.resolveToken(opts.from),
       this.resolveToken(opts.to),
     ]);
+    const inputMultiplier = this.getScaledUiMultiplier(inputToken);
+    const outputMultiplier = this.getScaledUiMultiplier(outputToken);
 
     const order = await UltraClient.getOrder({
       inputMint: inputToken.id,
       outputMint: outputToken.id,
       amount:
         opts.rawAmount ??
-        NumberConverter.toChainAmount(opts.amount!, inputToken.decimals),
+        NumberConverter.toChainAmount(
+          opts.amount!,
+          inputToken.decimals,
+          inputMultiplier
+        ),
     });
     if (order.error) {
       throw new Error(order.errorMessage ?? order.error);
@@ -122,11 +128,13 @@ export class SpotCommand {
 
     const inAmount = NumberConverter.fromChainAmount(
       order.inAmount,
-      inputToken.decimals
+      inputToken.decimals,
+      inputMultiplier
     );
     const outAmount = NumberConverter.fromChainAmount(
       order.outAmount,
-      outputToken.decimals
+      outputToken.decimals,
+      outputMultiplier
     );
 
     if (Output.isJson()) {
@@ -184,12 +192,19 @@ export class SpotCommand {
       this.resolveToken(opts.from),
       this.resolveToken(opts.to),
     ]);
+    const inputMultiplier = this.getScaledUiMultiplier(inputToken);
+    const outputMultiplier = this.getScaledUiMultiplier(outputToken);
+
     const order = await UltraClient.getOrder({
       inputMint: inputToken.id,
       outputMint: outputToken.id,
       amount:
         opts.rawAmount ??
-        NumberConverter.toChainAmount(opts.amount!, inputToken.decimals),
+        NumberConverter.toChainAmount(
+          opts.amount!,
+          inputToken.decimals,
+          inputMultiplier
+        ),
       taker: signer.address,
     });
 
@@ -208,11 +223,13 @@ export class SpotCommand {
 
     const inAmount = NumberConverter.fromChainAmount(
       result.inputAmountResult,
-      inputToken.decimals
+      inputToken.decimals,
+      inputMultiplier
     );
     const outAmount = NumberConverter.fromChainAmount(
       result.outputAmountResult,
-      outputToken.decimals
+      outputToken.decimals,
+      outputMultiplier
     );
 
     let networkFeeLamports = 0;
@@ -384,11 +401,7 @@ export class SpotCommand {
       if (!info) {
         continue;
       }
-      const multiplier = info.scaledUiConfig
-        ? new Date() >= new Date(info.scaledUiConfig.newMultiplierEffectiveAt)
-          ? info.scaledUiConfig.newMultiplier
-          : info.scaledUiConfig.multiplier
-        : undefined;
+      const multiplier = this.getScaledUiMultiplier(info);
       const amount = Number(
         NumberConverter.fromChainAmount(ata.amount, info.decimals, multiplier)
       );
@@ -453,6 +466,17 @@ export class SpotCommand {
     if (opts.amount && opts.rawAmount) {
       throw new Error("Only one of --amount or --raw-amount can be provided.");
     }
+  }
+
+  private static getScaledUiMultiplier(token: Token): number | undefined {
+    if (!token.scaledUiConfig) {
+      return undefined;
+    }
+    const isNewMultiplierActive =
+      new Date() >= new Date(token.scaledUiConfig.newMultiplierEffectiveAt);
+    return isNewMultiplierActive
+      ? token.scaledUiConfig.newMultiplier
+      : token.scaledUiConfig.multiplier;
   }
 
   private static async resolveToken(input: string): Promise<Token> {
