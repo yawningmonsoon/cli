@@ -15,7 +15,7 @@ program
   .name("jup")
   .description("Jupiter CLI for agentic workflows")
   .version("0.1.0")
-  .option("--output <type>", "Output format ('table' or 'json')")
+  .option("-o, --output <type>", "Output format ('table' or 'json')")
   .hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
     if (opts.output) {

@@ -48,11 +48,11 @@ export class SpotCommand {
       .option("--key <name>", "Key to use for signing")
       .action((opts) => this.swap(opts));
     spot
-      .command("holdings")
-      .description("Show token holdings for a wallet")
+      .command("portfolio")
+      .description("Show spot portfolio for a wallet")
       .option("--address <address>", "Wallet address to look up")
       .option("--key <name>", "Key to use (overrides active key)")
-      .action((opts) => this.holdings(opts));
+      .action((opts) => this.portfolio(opts));
   }
 
   private static async tokens(opts: {
@@ -304,7 +304,7 @@ export class SpotCommand {
     });
   }
 
-  private static async holdings(opts: {
+  private static async portfolio(opts: {
     address?: string;
     key?: string;
   }): Promise<void> {

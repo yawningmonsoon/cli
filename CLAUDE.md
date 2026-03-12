@@ -32,7 +32,7 @@ bun run ci
 
 - `ConfigCommand` — `config list`, `config set`
 - `KeysCommand` — `keys list/add/delete/use/solana-import`
-- `SpotCommand` — `spot tokens/quote/swap`
+- `SpotCommand` — `spot tokens/quote/swap/portfolio`
 
 **Libraries** (`src/lib/`):
 
