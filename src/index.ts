@@ -15,14 +15,14 @@ program
   .name("jup")
   .description("Jupiter CLI for agentic workflows")
   .version("0.1.0")
-  .option("-o, --output <type>", "Output format ('table' or 'json')")
+  .option("-f, --format <type>", "Output format ('table' or 'json')")
   .hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
-    if (opts.output) {
-      if (opts.output !== "table" && opts.output !== "json") {
-        throw new Error("Invalid --output format. Must be 'table' or 'json'.");
+    if (opts.format) {
+      if (opts.format !== "table" && opts.format !== "json") {
+        throw new Error("Invalid --format value. Must be 'table' or 'json'.");
       }
-      Output.outputOverride = opts.output;
+      Output.outputOverride = opts.format;
     }
   });
 

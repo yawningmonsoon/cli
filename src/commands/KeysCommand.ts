@@ -15,7 +15,7 @@ import { Signer } from "../lib/Signer.ts";
 
 export class KeysCommand {
   public static register(program: Command): void {
-    const keys = program.command("keys").description("Manage keypairs");
+    const keys = program.command("keys").description("Private key management");
     keys
       .command("list")
       .description("List all keys")

@@ -1,15 +1,17 @@
 # Jupiter CLI (`jup`)
 
-CLI for interacting with Jupiter's products on Solana: Spot, Perps, Lend, Prediction Markets.
+CLI for interacting with Jupiter's products on Solana: Spot, Perps, Lend, Prediction Markets and more.
 
 ## Error handling
 
-On failure, commands exit with non-zero code with an error message. In JSON mode (`--output json`), errors are returned as `{ "error": "<message>" }`.
+On failure, commands exit with non-zero code with an error message. In JSON mode (`--format json`), errors are returned as `{ "error": "<message>" }`.
 
 ## Skills
 
-- [Setup](docs/setup.md): Install, configure, and manage keys
-- [Spot Trading](docs/spot.md): Token search, quotes, swaps, transfers, and portfolios
-- Perps Trading: Perpetual futures (coming soon)
+- [Setup](docs/setup.md): Installation of the CLI
+- [Config](docs/config.md): CLI settings and configurations
+- [Keys](docs/keys.md): Private key management
+- [Spot](docs/spot.md): Swaps, transfers, token and portfolio data
+- Perps: Perpetual futures (coming soon)
 - Lend: Lending and borrowing (coming soon)
-- Prediction Markets: Create and trade prediction markets (coming soon)
+- Predictions: Create and trade prediction markets (coming soon)

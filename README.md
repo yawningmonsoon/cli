@@ -1,6 +1,6 @@
-# Jupiter CLI (`jup`)
+# Jupiter CLI
 
-CLI for interacting with Jupiter on Solana — swap, trade perps, lend, and more from the terminal.
+CLI for interacting with Jupiter's products on Solana: Spot, Perps, Lend, Prediction Markets and more.
 
 ## Install
 
@@ -13,7 +13,7 @@ Or download a standalone binary from [GitHub Releases](https://github.com/jup-ag
 ## Quick start
 
 ```bash
-# Generate a key
+# Generate a new key called 'default'
 jup keys add default
 
 # Or import an existing Solana CLI keypair
@@ -29,39 +29,13 @@ jup spot swap --from SOL --to USDC --amount 1
 jup spot portfolio
 ```
 
-## Commands
+## Docs
 
-| Command | Description |
-| --- | --- |
-| `jup config list` | View current settings |
-| `jup config set` | Update settings (output format, active key) |
-| `jup keys add` | Generate or recover a keypair |
-| `jup keys list` | List stored keys |
-| `jup keys use` | Set the active signing key |
-| `jup keys edit` | Rename or update a key's credentials |
-| `jup keys delete` | Delete a key |
-| `jup keys solana-import` | Import a Solana CLI keypair |
-| `jup spot tokens` | Search for tokens |
-| `jup spot quote` | Get a swap quote |
-| `jup spot swap` | Execute a swap |
-| `jup spot portfolio` | View wallet holdings |
-| `jup spot transfer` | Transfer SOL or SPL tokens |
+See the [`/docs`](./docs/) directory for specific guides and workflows:
 
-Use `--help` on any command for full options.
+- [Setup](docs/setup.md): Installation of the CLI
+- [Config](docs/config.md): CLI settings and configurations
+- [Keys](docs/keys.md): Private key management
+- [Spot](docs/spot.md): Swaps, transfers, token and portfolio data
 
-## For AI agents
-
-This CLI is designed to be agent-friendly. Set JSON output mode for structured responses:
-
-```bash
-jup config set --output json
-```
-
-See [`llms.txt`](llms.txt) for the full agent guide, or jump directly to a skill:
-
-- [Setup](docs/setup.md) — Install, configure, and manage keys
-- [Spot Trading](docs/spot.md) — Token search, quotes, swaps, transfers, and portfolios
-
-## License
-
-ISC
+> This CLI is designed to be LLM friendly and all commands are non-interactive. Set JSON output mode for structured responses: `jup config set --output json`.
