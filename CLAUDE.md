@@ -31,7 +31,7 @@ bun run ci
 **Commands** (`src/commands/`): Static classes that register subcommands. Each delegates to library modules.
 
 - `ConfigCommand` — `config list`, `config set`
-- `KeysCommand` — `keys list/add/delete/use/solana-import`
+- `KeysCommand` — `keys list/add/delete/edit/use/solana-import`
 - `SpotCommand` — `spot tokens/quote/swap/portfolio/transfer`
 
 **Libraries** (`src/lib/`):
