@@ -1,4 +1,4 @@
-import type { Base64EncodedBytes } from "@solana/kit";
+import type { Address, Base64EncodedBytes } from "@solana/kit";
 import ky from "ky";
 
 type GetOrderRequest = {
@@ -64,6 +64,45 @@ export type GetHoldingsResponse = {
   tokens: Record<string, HoldingsTokenAccount[]>;
 };
 
+type GetTransferTokenTxRequest = {
+  senderAddress: Address;
+  senderTokenAccountAddress: Address;
+  receiverAddress: Address;
+  receiverTokenAccountAddress?: Address; // If present, `receiverAddress` will be ignored and sending to non-initialised ATAs won't work
+  amount: string;
+  mint: string;
+  tokenDecimals: string;
+  tokenProgramId: string;
+};
+
+type GetTransferSolTxRequest = {
+  senderAddress: Address;
+  receiverAddress: Address;
+  amount: string;
+};
+
+type GetTransferTxResponse =
+  | {
+      requestId: string;
+      transaction: string; // base64 encoded wire tx
+      expireAt: string;
+      feeAmount: number;
+      feeUsdAmount: number;
+    }
+  | {
+      error: string;
+    };
+
+type PostExecuteTransferRequest = {
+  requestId: string;
+  signedTransaction: string;
+};
+
+type PostExecuteTransferResponse = {
+  code: number;
+  signature: string;
+};
+
 export class UltraClient {
   static readonly #BASE_URL = "https://lite-api.jup.ag/ultra/v1";
   static readonly #ATTRIBUTION_HEADER = {
@@ -71,11 +110,11 @@ export class UltraClient {
   } as const;
 
   public static async getOrder(
-    params: GetOrderRequest
+    req: GetOrderRequest
   ): Promise<GetOrderResponse> {
     return ky
       .get(`${this.#BASE_URL}/order`, {
-        searchParams: params,
+        searchParams: req,
         throwHttpErrors: false,
         headers: this.#ATTRIBUTION_HEADER,
       })
@@ -95,6 +134,41 @@ export class UltraClient {
   public static async postExecute(req: PostExecuteRequest) {
     return ky
       .post<PostExecuteResponse>(`${this.#BASE_URL}/execute`, {
+        json: req,
+        headers: this.#ATTRIBUTION_HEADER,
+      })
+      .json();
+  }
+
+  public static async getTransferTokenTx(
+    req: GetTransferTokenTxRequest
+  ): Promise<GetTransferTxResponse> {
+    return ky
+      .get(`${this.#BASE_URL}/transfer/craft-token`, {
+        searchParams: req,
+        throwHttpErrors: false,
+        headers: this.#ATTRIBUTION_HEADER,
+      })
+      .json();
+  }
+
+  public static async getTransferSolTx(
+    req: GetTransferSolTxRequest
+  ): Promise<GetTransferTxResponse> {
+    return ky
+      .get(`${this.#BASE_URL}/transfer/craft-native`, {
+        searchParams: req,
+        throwHttpErrors: false,
+        headers: this.#ATTRIBUTION_HEADER,
+      })
+      .json();
+  }
+
+  public static async postExecuteTransfer(
+    req: PostExecuteTransferRequest
+  ): Promise<PostExecuteTransferResponse> {
+    return ky
+      .post(`${this.#BASE_URL}/transfer/execute`, {
         json: req,
         headers: this.#ATTRIBUTION_HEADER,
       })

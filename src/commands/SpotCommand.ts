@@ -1,3 +1,5 @@
+import { findAssociatedTokenPda } from "@solana-program/token";
+import type { Address, Base64EncodedBytes } from "@solana/kit";
 import type { Command } from "commander";
 
 import { DatapiClient, type Token } from "../clients/DatapiClient.ts";
@@ -6,6 +8,7 @@ import {
   type HoldingsTokenAccount,
 } from "../clients/UltraClient.ts";
 import { Config } from "../lib/Config.ts";
+import { Mint } from "../lib/Mint.ts";
 import { NumberConverter } from "../lib/NumberConverter.ts";
 import { Output } from "../lib/Output.ts";
 import { Signer } from "../lib/Signer.ts";
@@ -53,6 +56,21 @@ export class SpotCommand {
       .option("--address <address>", "Wallet address to look up")
       .option("--key <name>", "Key to use (overrides active key)")
       .action((opts) => this.portfolio(opts));
+    spot
+      .command("transfer")
+      .description("Transfer tokens to another wallet")
+      .requiredOption(
+        "--token <token>",
+        "Token to transfer (symbol or mint address)"
+      )
+      .requiredOption("--to <address>", "Recipient wallet address")
+      .option("--amount <n>", "Amount in human-readable units")
+      .option(
+        "--raw-amount <n>",
+        "Amount in on-chain units (no decimal conversion)"
+      )
+      .option("--key <name>", "Key to use for signing")
+      .action((opts) => this.transfer(opts));
   }
 
   private static async tokens(opts: {
@@ -140,13 +158,13 @@ export class SpotCommand {
     if (Output.isJson()) {
       Output.json({
         inputToken: {
+          id: inputToken.id,
           symbol: inputToken.symbol,
-          mint: inputToken.id,
           decimals: inputToken.decimals,
         },
         outputToken: {
+          id: outputToken.id,
           symbol: outputToken.symbol,
-          mint: outputToken.id,
           decimals: outputToken.decimals,
         },
         inAmount,
@@ -258,13 +276,13 @@ export class SpotCommand {
         trader: signer.address,
         signature: result.signature,
         inputToken: {
+          id: inputToken.id,
           symbol: inputToken.symbol,
-          mint: inputToken.id,
           decimals: inputToken.decimals,
         },
         outputToken: {
+          id: outputToken.id,
           symbol: outputToken.symbol,
-          mint: outputToken.id,
           decimals: outputToken.decimals,
         },
         inAmount,
@@ -316,7 +334,6 @@ export class SpotCommand {
       opts.address ??
       (await Signer.load(opts.key ?? Config.load().activeKey)).address;
 
-    const WSOL_MINT = "So11111111111111111111111111111111111111112";
     const SOL_DECIMALS = 9;
 
     const raw = await UltraClient.getHoldings(address);
@@ -332,8 +349,8 @@ export class SpotCommand {
 
     // Resolve all token info via Datapi
     const allMints = [...ataByMint.keys()];
-    if (!ataByMint.has(WSOL_MINT)) {
-      allMints.push(WSOL_MINT);
+    if (!ataByMint.has(Mint.WSOL)) {
+      allMints.push(Mint.WSOL);
     }
 
     const BATCH_SIZE = 100;
@@ -356,7 +373,7 @@ export class SpotCommand {
       }
     }
 
-    type HoldingToken = {
+    const outputTokens: {
       id: string;
       symbol: string;
       decimals: number;
@@ -367,21 +384,19 @@ export class SpotCommand {
       priceChange: number;
       isVerified?: boolean | undefined;
       scaledUiMultiplier?: number | undefined;
-    };
-
-    const outputTokens: HoldingToken[] = [];
+    }[] = [];
 
     // Add combined SOL/WSOL entry
-    const wsolInfo = tokenMap.get(WSOL_MINT);
+    const wsolInfo = tokenMap.get(Mint.WSOL);
     const solLamports = BigInt(raw.amount);
-    const wsolLamports = BigInt(ataByMint.get(WSOL_MINT)?.amount ?? "0");
+    const wsolLamports = BigInt(ataByMint.get(Mint.WSOL)?.amount ?? "0");
     const combinedSolLamports = solLamports + wsolLamports;
     if (wsolInfo && combinedSolLamports > 0n) {
       const amount = Number(
         NumberConverter.fromChainAmount(combinedSolLamports, SOL_DECIMALS)
       );
       outputTokens.push({
-        id: WSOL_MINT,
+        id: Mint.WSOL,
         symbol: wsolInfo.symbol,
         decimals: SOL_DECIMALS,
         amount,
@@ -394,7 +409,7 @@ export class SpotCommand {
     }
 
     for (const [mint, ata] of ataByMint) {
-      if (mint === WSOL_MINT) {
+      if (mint === Mint.WSOL) {
         continue;
       }
       const info = tokenMap.get(mint);
@@ -454,6 +469,108 @@ export class SpotCommand {
       })),
     });
     console.log(`\nTotal Value: ${Output.formatDollar(totalValue)}`);
+  }
+
+  public static async transfer(opts: {
+    token: string;
+    amount?: string;
+    rawAmount?: string;
+    to: string;
+    key?: string;
+  }): Promise<void> {
+    this.validateAmountOpts(opts);
+
+    const settings = Config.load();
+    const [signer, token] = await Promise.all([
+      Signer.load(opts.key ?? settings.activeKey),
+      this.resolveToken(opts.token),
+    ]);
+    const multiplier = this.getScaledUiMultiplier(token);
+    const chainAmount =
+      opts.rawAmount ??
+      NumberConverter.toChainAmount(opts.amount!, token.decimals, multiplier);
+
+    let txResponse;
+    if (token.id === Mint.WSOL) {
+      txResponse = await UltraClient.getTransferSolTx({
+        senderAddress: signer.address as Address,
+        receiverAddress: opts.to as Address,
+        amount: chainAmount,
+      });
+    } else {
+      const [senderTokenAccountAddress] = await findAssociatedTokenPda({
+        mint: token.id as Address,
+        owner: signer.address as Address,
+        tokenProgram: token.tokenProgram as Address,
+      });
+      txResponse = await UltraClient.getTransferTokenTx({
+        mint: token.id,
+        tokenDecimals: token.decimals.toString(),
+        tokenProgramId: token.tokenProgram,
+        senderAddress: signer.address as Address,
+        senderTokenAccountAddress,
+        receiverAddress: opts.to as Address,
+        amount: chainAmount,
+      });
+    }
+
+    if ("error" in txResponse) {
+      throw new Error(txResponse.error);
+    }
+
+    const signedTx = await signer.signTransaction(
+      txResponse.transaction as Base64EncodedBytes
+    );
+    const result = await UltraClient.postExecuteTransfer({
+      requestId: txResponse.requestId,
+      signedTransaction: signedTx,
+    });
+
+    const humanAmount = NumberConverter.fromChainAmount(
+      chainAmount,
+      token.decimals,
+      multiplier
+    );
+    const value = Number(humanAmount) * (token.usdPrice ?? 0);
+
+    if (Output.isJson()) {
+      Output.json({
+        sender: signer.address,
+        recipient: opts.to,
+        token: {
+          id: token.id,
+          symbol: token.symbol,
+          decimals: token.decimals,
+        },
+        amount: humanAmount,
+        value: value,
+        networkFeeLamports: txResponse.feeAmount,
+        signature: result.signature,
+      });
+      return;
+    }
+
+    const networkFee = NumberConverter.fromChainAmount(
+      txResponse.feeAmount.toString(),
+      9
+    );
+
+    Output.table({
+      type: "vertical",
+      rows: [
+        { label: "Sender", value: signer.address },
+        { label: "Recipient", value: opts.to },
+        {
+          label: "Amount",
+          value: `${humanAmount} ${token.symbol} (${Output.formatDollar(value)})`,
+        },
+        {
+          label: "Network Fee",
+          value: `${networkFee} SOL`,
+        },
+        { label: "Tx Signature", value: result.signature },
+      ],
+    });
   }
 
   private static validateAmountOpts(opts: {
