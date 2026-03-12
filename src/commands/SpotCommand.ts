@@ -17,7 +17,7 @@ export class SpotCommand {
   public static register(program: Command): void {
     const spot = program
       .command("spot")
-      .description("Spot trading: token search, quotes, and swaps");
+      .description("Swaps, transfers, token and portfolio data");
     spot
       .command("tokens")
       .description("Search for tokens by symbol or mint address")

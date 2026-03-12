@@ -5,7 +5,7 @@ import { Output } from "../lib/Output.ts";
 
 export class ConfigCommand {
   public static register(program: Command): void {
-    const config = program.command("config").description("Manage CLI settings");
+    const config = program.command("config").description("CLI settings and configurations");
     config
       .command("list")
       .description("List all settings")
