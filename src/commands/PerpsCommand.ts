@@ -1,4 +1,5 @@
 import type { Base64EncodedBytes } from "@solana/kit";
+import chalk from "chalk";
 import type { Command } from "commander";
 
 import { PerpsClient, type ExecuteResponse } from "../clients/PerpsClient.ts";
@@ -127,7 +128,9 @@ export class PerpsCommand {
           tpsl: p.tpslRequests.map((t) => ({
             pubkey: t.positionRequestPubkey,
             type: t.requestType,
-            triggerPriceUsd: Number(PerpsClient.fromUsdRaw(t.triggerPrice)),
+            triggerPriceUsd: t.triggerPriceUsd
+              ? Number(PerpsClient.fromUsdRaw(t.triggerPriceUsd))
+              : null,
           })),
         })),
         limitOrders: ordersRes.dataList.map((o) => ({
@@ -135,59 +138,68 @@ export class PerpsCommand {
           asset: mintToName.get(o.marketMint) ?? o.marketMint,
           side: o.side,
           sizeUsd: Number(PerpsClient.fromUsdRaw(o.sizeUsdDelta)),
-          triggerPriceUsd: Number(PerpsClient.fromUsdRaw(o.triggerPrice)),
+          triggerPriceUsd: o.triggerPrice
+            ? Number(PerpsClient.fromUsdRaw(o.triggerPrice))
+            : null,
         })),
       });
       return;
     }
 
-    // Positions table
+    // Positions tables
     if (positionsRes.dataList.length > 0) {
-      console.log("\nOpen Positions:");
-      Output.table({
-        type: "horizontal",
-        headers: {
-          asset: "Asset",
-          side: "Side",
-          leverage: "Leverage",
-          size: "Size",
-          entry: "Entry Price",
-          mark: "Mark Price",
-          pnl: "PnL",
-          liq: "Liq. Price",
-          pubkey: "Position",
-        },
-        rows: positionsRes.dataList.map((p) => ({
-          asset: p.asset,
-          side: p.side,
-          leverage: `${Number(p.leverage).toFixed(1)}x`,
-          size: Output.formatDollar(Number(PerpsClient.fromUsdRaw(p.sizeUsd))),
-          entry: Output.formatDollar(
-            Number(PerpsClient.fromUsdRaw(p.entryPriceUsd))
-          ),
-          mark: Output.formatDollar(
-            Number(PerpsClient.fromUsdRaw(p.markPriceUsd))
-          ),
-          pnl: Output.formatPercentageChange(Number(p.pnlAfterFeesPct)),
-          liq: Output.formatDollar(
-            Number(PerpsClient.fromUsdRaw(p.liquidationPriceUsd))
-          ),
-          pubkey: p.positionPubkey,
-        })),
-      });
-
-      // Show TP/SL for each position
       for (const p of positionsRes.dataList) {
-        if (p.tpslRequests.length > 0) {
-          console.log(`\n  TP/SL for ${p.asset} ${p.side}:`);
-          for (const tpsl of p.tpslRequests) {
-            const type = tpsl.requestType === "tp" ? "TP" : "SL";
-            const price = PerpsClient.fromUsdRaw(tpsl.triggerPrice);
-            console.log(
-              `    ${type}: $${price} (${tpsl.positionRequestPubkey})`
-            );
-          }
-        }
+        const tp = p.tpslRequests.find((t) => t.requestType === "tp");
+        const sl = p.tpslRequests.find((t) => t.requestType === "sl");
+        const sideColor = p.side === "long" ? chalk.green.bold : chalk.red.bold;
+        const rows: { label: string; value: string }[] = [
+          {
+            label: "Type",
+            value: `${sideColor(`${p.asset} ${Number(p.leverage).toFixed(1)}x ${p.side}`)} ${chalk.gray(`(${p.positionPubkey})`)}`,
+          },
+          {
+            label: "Size",
+            value: Output.formatDollar(
+              Number(PerpsClient.fromUsdRaw(p.sizeUsd))
+            ),
+          },
+          {
+            label: "Entry Price",
+            value: Output.formatDollar(
+              Number(PerpsClient.fromUsdRaw(p.entryPriceUsd))
+            ),
+          },
+          {
+            label: "Mark Price",
+            value: Output.formatDollar(
+              Number(PerpsClient.fromUsdRaw(p.markPriceUsd))
+            ),
+          },
+          {
+            label: "PnL",
+            value: Output.formatPercentageChange(Number(p.pnlAfterFeesPct)),
+          },
+          {
+            label: "Liq. Price",
+            value: Output.formatDollar(
+              Number(PerpsClient.fromUsdRaw(p.liquidationPriceUsd))
+            ),
+          },
+          {
+            label: "TP",
+            value: tp
+              ? `${Output.formatDollar(tp.triggerPriceUsd ? Number(PerpsClient.fromUsdRaw(tp.triggerPriceUsd)) : undefined)} ${chalk.gray(`(${tp.positionRequestPubkey})`)}`
+              : Output.formatDollar(undefined),
+          },
+          {
+            label: "SL",
+            value: sl
+              ? `${Output.formatDollar(sl.triggerPriceUsd ? Number(PerpsClient.fromUsdRaw(sl.triggerPriceUsd)) : undefined)} ${chalk.gray(`(${sl.positionRequestPubkey})`)}`
+              : Output.formatDollar(undefined),
+          },
+        ];
+
+        Output.table({ type: "vertical", rows });
       }
     } else {
       console.log("\nNo open positions.");
@@ -213,7 +225,9 @@ export class PerpsCommand {
             Number(PerpsClient.fromUsdRaw(o.sizeUsdDelta))
           ),
           trigger: Output.formatDollar(
-            Number(PerpsClient.fromUsdRaw(o.triggerPrice))
+            o.triggerPrice
+              ? Number(PerpsClient.fromUsdRaw(o.triggerPrice))
+              : undefined
           ),
           pubkey: o.positionRequestPubkey,
         })),
@@ -315,6 +329,9 @@ export class PerpsCommand {
         sizeUsdDelta,
         walletAddress: signer.address,
       });
+      if (!res.serializedTxBase64) {
+        throw new Error("API returned no transaction for limit order.");
+      }
 
       const result = await this.signAndExecute(
         signer,
@@ -358,15 +375,21 @@ export class PerpsCommand {
       });
     } else {
       // Market order
-      const tpsl: { triggerPrice: string; requestType: string }[] = [];
+      const tpsl: {
+        receiveToken: string;
+        triggerPrice: string;
+        requestType: string;
+      }[] = [];
       if (opts.tp) {
         tpsl.push({
+          receiveToken: inputToken,
           triggerPrice: PerpsClient.toUsdRaw(opts.tp),
           requestType: "tp",
         });
       }
       if (opts.sl) {
         tpsl.push({
+          receiveToken: inputToken,
           triggerPrice: PerpsClient.toUsdRaw(opts.sl),
           requestType: "sl",
         });
@@ -477,6 +500,9 @@ export class PerpsCommand {
         positionRequestPubkey: opts.order,
         triggerPrice: PerpsClient.toUsdRaw(opts.limit!),
       });
+      if (!res.serializedTxBase64) {
+        throw new Error("API returned no transaction for limit order update.");
+      }
 
       const result = await this.signAndExecute(
         signer,

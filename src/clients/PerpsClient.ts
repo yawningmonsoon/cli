@@ -15,9 +15,14 @@ export type MarketStatsResponse = {
 export type TpslRequest = {
   positionRequestPubkey: string;
   requestType: "tp" | "sl";
-  triggerPrice: string;
-  sizeUsdDelta: string;
+  desiredMint: string;
+  desiredToken: string;
+  collateralUsdDelta: string;
   entirePosition: boolean;
+  sizeUsd: string;
+  sizePercentage: string;
+  triggerPriceUsd: string | null;
+  openTime: string;
 };
 
 export type Position = {
@@ -55,19 +60,24 @@ export type GetPositionsResponse = {
 
 export type LimitOrder = {
   collateralMint: string;
+  collateralCustody: string;
   collateralUsd: string;
+  collateralUsdAtTriggerPrice: string;
   collateralTokenAmount: string;
   custody: string;
   executed: boolean;
   inputMint: string;
   liquidationPriceUsd: string;
   marketMint: string;
+  maxSizeUsdDelta: string;
+  minSizeUsdDelta: string;
   openTime: string;
   positionPubkey: string;
   positionRequestPubkey: string;
   side: string;
   sizeUsdDelta: string;
-  triggerPrice: string;
+  triggerPrice: string | null;
+  triggerToLiquidationPercent: string | null;
 };
 
 export type GetLimitOrdersResponse = {
@@ -88,6 +98,7 @@ export type IncreasePositionQuote = {
   leverage: string;
   liquidationPriceUsd: string;
   openFeeUsd: string;
+  outstandingBorrowFeeUsd: string;
   positionCollateralUsd: string;
   positionSizeUsd: string;
   priceImpactFeeBps: string;
@@ -116,6 +127,7 @@ export type DecreasePositionQuote = {
   collateralUsdDelta: string;
   leverage: string;
   liquidationPriceUsd: string;
+  outstandingBorrowFeeUsd: string;
   pnlAfterFeesUsd: string;
   pnlAfterFeesPercent: string;
   pnlBeforeFeesUsd: string;
@@ -148,14 +160,15 @@ export type CloseAllResponse = {
 };
 
 export type LimitOrderResponse = {
-  positionPubkey: string;
+  positionPubkey: string | null;
+  positionRequestPubkey?: string | null;
   quote: IncreasePositionQuote;
-  serializedTxBase64: string;
-  txMetadata: TxMetadata;
+  serializedTxBase64: string | null;
+  txMetadata: TxMetadata | null;
 };
 
 export type TpslResponse = {
-  tpslPubkeys: string[];
+  tpslPubkeys?: string[];
   requireKeeperSignature: boolean;
   serializedTxBase64: string;
   tpslRequests: {
@@ -172,9 +185,10 @@ export type TpslResponse = {
 export type CancelResponse = {
   serializedTxBase64: string;
   txMetadata: TxMetadata;
-  positionPubkey?: string;
-  positionRequestPubkey?: string;
-  requireKeeperSignature?: boolean;
+  positionPubkey?: string | null;
+  positionRequestPubkey?: string | null;
+  requireKeeperSignature?: boolean | null;
+  transactionType?: string;
 };
 
 export type ExecuteResponse = {
@@ -235,7 +249,11 @@ export class PerpsClient {
     leverage?: string;
     sizeUsdDelta?: string;
     walletAddress: string;
-    tpsl?: { triggerPrice: string; requestType: string }[];
+    tpsl?: {
+      receiveToken: string;
+      triggerPrice: string;
+      requestType: string;
+    }[];
   }): Promise<IncreasePositionResponse> {
     return this.#ky.post("positions/increase", { json: req }).json();
   }
@@ -294,6 +312,7 @@ export class PerpsClient {
       triggerPrice: string;
       requestType: string;
       entirePosition: boolean;
+      sizeUsdDelta?: string;
     }[];
   }): Promise<TpslResponse> {
     return this.#ky.post("tpsl", { json: req }).json();
