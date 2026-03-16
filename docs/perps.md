@@ -1,6 +1,6 @@
 # Perpetual Futures Trading
 
-Requires: an active key for all commands except `positions` (with `--address`) and `markets`. See [setup](setup.md).
+Requires: an active key for all commands except `positions` (with `--address`), `history` (with `--address`), and `markets`. See [setup](setup.md).
 
 ## Markets
 
@@ -49,6 +49,49 @@ jup perps positions --address <wallet-address>
       "side": "long",
       "sizeUsd": 50,
       "triggerPriceUsd": 80
+    }
+  ]
+}
+```
+
+### View trade history
+
+```bash
+jup perps history
+jup perps history --key mykey
+jup perps history --address <wallet-address>
+
+# Filter by asset, side, or action
+jup perps history --asset SOL --side long
+jup perps history --action Decrease
+
+# Filter by date range
+jup perps history --after 2026-03-01 --before 2026-03-15
+
+# Limit results (default: 20)
+jup perps history --limit 5
+```
+
+- Shows past trades (opens, closes) with PnL and fees
+- `--after` and `--before` accept date strings (e.g. `2026-03-01`) or UNIX timestamps
+- `pnlUsd` and `pnlPct` are `null` for Increase (open) actions
+
+```js
+// Example JSON response:
+{
+  "count": 42, // total matching trades
+  "trades": [
+    {
+      "time": "2026-03-10T14:30:00.000Z",
+      "asset": "SOL",
+      "side": "long",
+      "action": "Decrease",
+      "sizeUsd": 11.66,
+      "priceUsd": 93.22,
+      "pnlUsd": 0.63, // null for Increase actions
+      "pnlPct": 5.97, // percentage; 5.97 means +5.97%
+      "feeUsd": 0.01,
+      "signature": "2Goj...diEc"
     }
   ]
 }
@@ -260,6 +303,12 @@ jup perps open --asset BTC --side long --amount 10 --input USDC --leverage 2 --l
 jup perps positions
 # Copy the orderPubkey
 jup perps set --order <pubkey> --limit 64000
+```
+
+### Review recent trades
+
+```bash
+jup perps history --asset SOL --limit 10
 ```
 
 ### Add collateral to reduce leverage
