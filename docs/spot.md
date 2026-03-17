@@ -102,6 +102,41 @@ jup spot portfolio --address <wallet-address>
 }
 ```
 
+### View trade history
+
+```bash
+jup spot history --address <wallet-address>
+jup spot history --key mykey
+jup spot history --address <wallet-address> --token SOL
+jup spot history --address <wallet-address> --after 2025-01-01 --before 2025-02-01
+jup spot history --address <wallet-address> --limit 10 --offset 123
+```
+
+- With no `--address` or `--key`, uses the active key's wallet
+- `--token` filters by token (symbol or mint address)
+- `--after` / `--before` accept ISO 8601 dates or UNIX timestamps
+- `--limit` defaults to 10, max 15
+- `--offset` is used for pagination; use the `next` value from the previous response to fetch the next page of results
+
+```js
+// Example JSON response:
+{
+  "trades": [
+    {
+      "time": "2025-01-15T10:30:00.000Z", // ISO 8601 timestamp
+      "inputToken": { "id": "So11...1112", "symbol": "SOL", "decimals": 9 },
+      "outputToken": { "id": "EPjF...USDC", "symbol": "USDC", "decimals": 6 },
+      "inAmount": "1", // human-readable decimal amount
+      "outAmount": "84.994059", // human-readable decimal amount
+      "inUsdValue": 84.98, // USD value
+      "outUsdValue": 84.99,
+      "signature": "3dV98zG..." // tx signature
+    }
+  ],
+  "next": "123" // pagination offset for next page of results; use with --offset to fetch next page
+}
+```
+
 ### Transfer tokens
 
 ```bash

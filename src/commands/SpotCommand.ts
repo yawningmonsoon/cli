@@ -1,8 +1,13 @@
 import { findAssociatedTokenPda } from "@solana-program/token";
 import type { Address, Base64EncodedBytes } from "@solana/kit";
+import chalk from "chalk";
 import type { Command } from "commander";
 
-import { DatapiClient, type Token } from "../clients/DatapiClient.ts";
+import {
+  DatapiClient,
+  type SpotTrade,
+  type Token,
+} from "../clients/DatapiClient.ts";
 import {
   UltraClient,
   type HoldingsTokenAccount,
@@ -57,6 +62,20 @@ export class SpotCommand {
       .option("--key <name>", "Key to use (overrides active key)")
       .action((opts) => this.portfolio(opts));
     spot
+      .command("history")
+      .description("View swap trade history for a wallet")
+      .option("--key <name>", "Key to use (overrides active key)")
+      .option("--address <address>", "Wallet address to look up")
+      .option("--token <token>", "Filter by token (symbol or mint address)")
+      .option("--after <date>", "Show trades after this date or UNIX timestamp")
+      .option(
+        "--before <date>",
+        "Show trades before this date or UNIX timestamp"
+      )
+      .option("--limit <n>", "Max number of results (max: 15)", "10")
+      .option("--offset <offset>", "Pagination offset for next page of results")
+      .action((opts) => this.history(opts));
+    spot
       .command("transfer")
       .description("Transfer tokens to another wallet")
       .requiredOption(
@@ -81,7 +100,7 @@ export class SpotCommand {
       throw new Error("--limit must be a number");
     }
 
-    const tokens = await DatapiClient.search({
+    const tokens = await DatapiClient.getTokensSearch({
       query: opts.search,
       limit: opts.limit,
     });
@@ -361,7 +380,7 @@ export class SpotCommand {
     }
     const resolved = await Promise.all(
       batches.map((batch) =>
-        DatapiClient.search({
+        DatapiClient.getTokensSearch({
           query: batch.join(","),
           limit: BATCH_SIZE.toString(),
         })
@@ -551,7 +570,7 @@ export class SpotCommand {
     }
 
     const networkFee = NumberConverter.fromChainAmount(
-      txResponse.feeAmount.toString(),
+      txResponse.feeAmount?.toString() ?? 0n,
       Asset.SOL.decimals
     );
 
@@ -571,6 +590,142 @@ export class SpotCommand {
         { label: "Tx Signature", value: result.signature },
       ],
     });
+  }
+
+  private static async history(opts: {
+    key?: string;
+    address?: string;
+    token?: string;
+    after?: string;
+    before?: string;
+    limit: string;
+    offset?: string;
+  }): Promise<void> {
+    if (opts.address && opts.key) {
+      throw new Error("Only one of --address or --key can be provided.");
+    }
+
+    const limit = Number(opts.limit);
+    if (isNaN(limit) || limit <= 0) {
+      throw new Error("--limit must be a positive number.");
+    }
+
+    const address =
+      opts.address ??
+      (await Signer.load(opts.key ?? Config.load().activeKey)).address;
+    const targetAsset = opts.token
+      ? await this.resolveToken(opts.token)
+      : undefined;
+    const { userTrades, next } = await DatapiClient.getSwapsByAddress({
+      address,
+      assetId: targetAsset?.id,
+      after: opts.after ? this.parseTimestamp(opts.after) : undefined,
+      before: opts.before ? this.parseTimestamp(opts.before) : undefined,
+      limit: opts.limit ? limit * 2 : undefined, // double bookkeeping
+      offset: opts.offset,
+    });
+
+    // Group double-bookkeeping entries by txHash
+    const grouped = new Map<string, SpotTrade[]>();
+    for (const t of userTrades) {
+      const existing = grouped.get(t.txHash);
+      if (existing) {
+        existing.push(t);
+      } else {
+        grouped.set(t.txHash, [t]);
+      }
+    }
+
+    // Resolve token metadata for all unique mints
+    const mints = [...new Set(userTrades.map((t) => t.assetId))];
+    const tokenMap = new Map<string, Token>();
+    if (mints.length > 0) {
+      const tokens = await DatapiClient.getTokensSearch({
+        query: mints.join(","),
+        limit: mints.length.toString(),
+      });
+      for (const token of tokens) {
+        tokenMap.set(token.id, token);
+      }
+    }
+
+    const trades = [...grouped.values()]
+      .map((entries) => {
+        const sell = entries.find((e) => e.type === "sell");
+        const buy = entries.find((e) => e.type === "buy");
+        const inputInfo = sell ? tokenMap.get(sell.assetId) : undefined;
+        const outputInfo = buy ? tokenMap.get(buy.assetId) : undefined;
+        return {
+          time: (sell ?? buy)!.blockTime,
+          inputToken: inputInfo
+            ? {
+                id: inputInfo.id,
+                symbol: inputInfo.symbol,
+                decimals: inputInfo.decimals,
+              }
+            : null,
+          outputToken: outputInfo
+            ? {
+                id: outputInfo.id,
+                symbol: outputInfo.symbol,
+                decimals: outputInfo.decimals,
+              }
+            : null,
+          inAmount: sell ? String(sell.amount) : null,
+          outAmount: buy ? String(buy.amount) : null,
+          inUsdValue: sell ? sell.usdVolume : null,
+          outUsdValue: buy ? buy.usdVolume : null,
+          signature: (sell ?? buy)!.txHash,
+        };
+      })
+      .slice(0, limit);
+
+    if (Output.isJson()) {
+      Output.json({
+        trades,
+        next,
+      });
+      return;
+    }
+
+    if (trades.length === 0) {
+      throw new Error("No trades found.");
+    }
+
+    Output.table({
+      type: "horizontal",
+      headers: {
+        time: "Time",
+        input: "Input",
+        output: "Output",
+        signature: "Tx Signature",
+      },
+      rows: trades.map((t) => ({
+        time: new Date(t.time).toLocaleString(),
+        input: t.inAmount
+          ? `${t.inAmount} ${t.inputToken?.symbol ?? "?"} (${Output.formatDollar(t.inUsdValue ?? undefined)})`
+          : chalk.gray("\u2014"),
+        output: t.outAmount
+          ? `${t.outAmount} ${t.outputToken?.symbol ?? "?"} (${Output.formatDollar(t.outUsdValue ?? undefined)})`
+          : chalk.gray("\u2014"),
+        signature: t.signature,
+      })),
+    });
+
+    if (next) {
+      console.log("\nNext offset:", next);
+    }
+  }
+
+  private static parseTimestamp(value: string): string {
+    if (/^\d+$/.test(value)) {
+      return new Date(Number(value) * 1000).toISOString();
+    }
+    const ms = new Date(value).getTime();
+    if (isNaN(ms)) {
+      throw new Error(`Invalid date: ${value}`);
+    }
+    return new Date(ms).toISOString();
   }
 
   private static validateAmountOpts(opts: {
@@ -597,7 +752,10 @@ export class SpotCommand {
   }
 
   private static async resolveToken(input: string): Promise<Token> {
-    const [token] = await DatapiClient.search({ query: input, limit: "1" });
+    const [token] = await DatapiClient.getTokensSearch({
+      query: input,
+      limit: "1",
+    });
     if (!token) {
       throw new Error(`Token not found: ${input}`);
     }

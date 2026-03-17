@@ -88,8 +88,8 @@ type GetTransferTxResponse =
       requestId: string;
       transaction: string; // base64 encoded wire tx
       expireAt: string;
-      feeAmount: number;
-      feeUsdAmount: number;
+      feeAmount?: number | undefined;
+      feeUsdAmount?: number | undefined;
     }
   | {
       error: string;

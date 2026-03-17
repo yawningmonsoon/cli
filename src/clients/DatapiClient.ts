@@ -95,16 +95,63 @@ type GetSearchTokensRequest = {
 
 type GetSearchTokensResponse = Token[];
 
+export type SpotTrade = {
+  type: "buy" | "sell";
+  usdVolume: number;
+  profit: number;
+  cost: number;
+  txHash: string;
+  assetId: string;
+  blockTime: string;
+  amount: number;
+  price: number;
+};
+
+type GetSpotHistoryResponse = {
+  userTrades: SpotTrade[];
+  next: string | null;
+};
+
 export class DatapiClient {
   static readonly #ky = ky.create({
-    prefixUrl: `${ClientConfig.host}/tokens/v2`,
+    prefixUrl: ClientConfig.host,
     headers: ClientConfig.headers,
     throwHttpErrors: false,
   });
 
-  public static async search(
+  public static async getTokensSearch(
     req: GetSearchTokensRequest
   ): Promise<GetSearchTokensResponse> {
-    return this.#ky.get("search", { searchParams: req }).json();
+    return this.#ky.get("tokens/v2/search", { searchParams: req }).json();
+  }
+
+  public static async getSwapsByAddress(params: {
+    address: string;
+    assetId?: string;
+    after?: string;
+    before?: string;
+    limit?: number;
+    offset?: string;
+  }): Promise<GetSpotHistoryResponse> {
+    const searchParams: Record<string, string | number> = {
+      addresses: params.address,
+      includeCapitalSide: "true",
+    };
+    if (params.assetId) {
+      searchParams.assetId = params.assetId;
+    }
+    if (params.after) {
+      searchParams.fromTs = params.after;
+    }
+    if (params.before) {
+      searchParams.toTs = params.before;
+    }
+    if (params.limit) {
+      searchParams.limit = Math.min(params.limit, 30);
+    }
+    if (params.offset) {
+      searchParams.offset = params.offset;
+    }
+    return this.#ky.get("_datapi/v1/txs/users", { searchParams }).json();
   }
 }
