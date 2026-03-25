@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.5.0
+
+### Features
+
+- Add `predictions` command for prediction markets (#10)
+- Add `update` command for self-updating the CLI (#9)
+- Resolve token arguments from user holdings for `swap --from`, `transfer --token`, and `reclaim --token` (#8)
+- Add `spot reclaim` command to close empty ATAs and reclaim locked SOL rent (#7)
+
+### Bug Fixes
+
+- Improve `update` command and install script hardening (ca2d16e)
+
 ## v0.4.0
 
 ### Features
@@ -27,7 +40,7 @@
 ### Features
 
 - Add `perps history` command with filters for asset, side, action, and date range (609e24b)
-- Consolidate `keys solana-import` into `keys add` (b8cd247)
+- Consolidate `keys solana-import` into `keys add` (#6)
 
 ### Improvements
 
@@ -49,12 +62,12 @@
 
 ### Features
 
-- Add `perps` command (f626769)
+- Add `perps` command (#3)
 - Add API key config (9e60e14)
 
 ### Improvements
 
-- Add GitHub Actions release workflow (7cdb113)
+- Add GitHub Actions release workflow (#2)
 
 ## v0.1.0
 

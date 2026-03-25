@@ -47,7 +47,7 @@ The format for each release section:
 
 ### Features
 
-- description (commit-hash)
+- description (#PR)
 
 ### Bug Fixes
 
@@ -55,7 +55,7 @@ The format for each release section:
 
 ### Improvements
 
-- description (commit-hash)
+- description (#PR)
 ```
 
 Group commits into these categories. Use the conventional commit prefix as a starting point, but recategorise based on the actual change if the prefix is misleading:
@@ -64,7 +64,9 @@ Group commits into these categories. Use the conventional commit prefix as a sta
 - Bug Fixes — actual bug fixes
 - Improvements — everything else (docs, CI, refactors, chores, etc.)
 
-Omit any category section that has no entries. Exclude version bump and release commits (e.g. `chore: bump version to vX.Y.Z`, `chore: release vX.Y.Z`). Use the short commit hash (7 chars) in parentheses. Strip the conventional commit prefix from the description — just use the human-readable part. Rephrase descriptions where necessary to be more understandable, capitalised, and properly formatted (e.g. use backticks for command names, file names, and config values).
+Omit any category section that has no entries. Exclude version bump and release commits (e.g. `chore: bump version to vX.Y.Z`, `chore: release vX.Y.Z`). Strip the conventional commit prefix from the description — just use the human-readable part. Rephrase descriptions where necessary to be more understandable, capitalised, and properly formatted (e.g. use backticks for command names, file names, and config values).
+
+**Reference format:** If the commit subject contains a PR number (e.g. `(#10)`), use that PR number in parentheses (e.g. `(#10)`). Otherwise, fall back to the short commit hash (7 chars) in parentheses.
 
 The file should have a top-level `# Changelog` heading, followed by release sections in reverse chronological order (newest first).
 
