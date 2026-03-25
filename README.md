@@ -38,7 +38,7 @@ jup spot swap --from SOL --to USDC --amount 1
 # Reclaim rent from empty token accounts
 jup spot reclaim
 
-# Open a 3x long SOL position with $10 USDC
+# Open a 3x long SOL position with 10 USDC
 jup perps open --asset SOL --side long --amount 10 --input USDC --leverage 3
 # View your perps positions
 jup perps positions
@@ -49,6 +49,13 @@ jup lend earn tokens
 jup lend earn deposit --token USDC --amount 100
 # View your lending positions
 jup lend earn positions
+
+# Browse prediction markets
+jup predictions events --category crypto
+# Open a prediction position with 10 USDC
+jup predictions open --market <marketId> --side yes --amount 10
+# View your prediction positions
+jup predictions positions
 ```
 
 ## Docs
@@ -65,6 +72,7 @@ jup lend earn positions
 - [Spot](docs/spot.md): Spot trading, transfers, token search and portfolio data
 - [Perps](docs/perps.md): Perps trading (leveraged longs/shorts)
 - [Lend](docs/lend.md): Lending and yield farming
+- [Predictions](docs/predictions.md): Prediction markets
 
 ## Changelog
 
