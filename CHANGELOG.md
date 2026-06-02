@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.10.1
+
+### Bug Fixes
+
+- Improve invalid `settings.json` error messages and redact API keys in `config list` output (#19)
+
+### Improvements
+
+- Upgrade `@solana/keychain` to v1.1 and reduce bundle size (#17)
+- Add end-to-end tests for the `keys` command (#18)
+
 ## v0.10.0
 
 ### Features
