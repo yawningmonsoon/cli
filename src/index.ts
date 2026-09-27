@@ -6,10 +6,12 @@ import { KeysCommand } from "./commands/KeysCommand.ts";
 import { LendCommand } from "./commands/LendCommand.ts";
 import { PerpsCommand } from "./commands/PerpsCommand.ts";
 import { PredictionsCommand } from "./commands/PredictionsCommand.ts";
+import { SignCommand } from "./commands/SignCommand.ts";
 import { SpotCommand } from "./commands/SpotCommand.ts";
 import { TaifoonCommand } from "./commands/TaifoonCommand.ts";
 import { ChainCommand } from "./commands/ChainCommand.ts";
 import { UpdateCommand } from "./commands/UpdateCommand.ts";
+import { VrfdCommand } from "./commands/VrfdCommand.ts";
 
 import { version } from "../package.json";
 import { Config } from "./lib/Config.ts";
@@ -42,10 +44,12 @@ KeysCommand.register(program);
 LendCommand.register(program);
 PerpsCommand.register(program);
 PredictionsCommand.register(program);
+SignCommand.register(program);
 SpotCommand.register(program);
 TaifoonCommand.register(program);
 ChainCommand.register(program);
 UpdateCommand.register(program);
+VrfdCommand.register(program);
 
 program.parseAsync().catch(async (err: unknown) => {
   await Output.error(err);

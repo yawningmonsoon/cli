@@ -1,5 +1,66 @@
 # Changelog
 
+## v0.10.1
+
+### Bug Fixes
+
+- Improve invalid `settings.json` error messages and redact API keys in `config list` output (#19)
+
+### Improvements
+
+- Upgrade `@solana/keychain` to v1.1 and reduce bundle size (#17)
+- Add end-to-end tests for the `keys` command (#18)
+
+## v0.10.0
+
+### Features
+
+- Add start and end timings for `predictions events` (81fa6e8)
+
+### Improvements
+
+- Fix price impact explanation in docs (b3e71a8)
+
+## v0.9.0
+
+### Features
+
+- Add `sign` command for signing `--dry-run` txs (#16)
+
+### Improvements
+
+- Show market rules in `predictions events` output (4bad927)
+
+## v0.8.1
+
+### Bug Fixes
+
+- Update `predictions` market metadata handling for API changes (90d9ff7)
+- Fix `predictions events --sort` handling (60f1f81)
+
+## v0.8.0
+
+### Features
+
+- Add `vrfd check` and `vrfd submit` commands for Jupiter token verification (#15)
+
+## v0.7.1
+
+### Bug Fixes
+
+- Update `@solana/kit` to fix `keys` issues (bc42d3d)
+
+### Improvements
+
+- Add Prettier formatting scripts and fix formatting (0c81498)
+- Move `requireEnv` and `requireParam` into `KeychainConfig` as private static methods (08877ea)
+
+## v0.7.0
+
+### Features
+
+- Add `solana-keychain` support with 10 remote/managed key backends (AWS KMS, CDP, Crossmint, Dfns, Fireblocks, GCP KMS, Para, Privy, Turnkey, Vault) (#13)
+
 ## v0.6.0
 
 ### Features
